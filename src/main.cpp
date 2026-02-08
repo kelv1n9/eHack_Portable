@@ -1244,7 +1244,7 @@ void loop()
       {
         oled.setContrast(MIN_BRIGHTNESS);
       }
-      
+
       if (millis() - screenOffTimer > SCREENOFF_TIME)
       {
         isScreenOff = true;
@@ -1252,7 +1252,7 @@ void loop()
     }
 
     oled.clear();
-    
+
     if (isScreenOff)
     {
       if ((millis() / 1000) % 2)
@@ -1296,7 +1296,22 @@ void loop()
         oled.print(Text);
       }
 
-      if (successfullyConnected || currentMode == HF_SCAN)
+      const bool showSerialCommandPreview =
+          serialCommandPreview && (millis() - serialCommandPreviewTimer <= SERIAL_COMMAND_PREVIEW_MS);
+      serialCommandPreview = showSerialCommandPreview;
+
+      if (showSerialCommandPreview)
+      {
+        const char *modeText = "MAN RPL";
+        oled.setCursorXY(14, 0);
+        oled.print(modeText);
+
+        char codeText[24];
+        snprintf(codeText, sizeof(codeText), "Code: %lu", serialCommandPreviewCode);
+        oled.setCursorXY(10 + (128 - getTextWidth(codeText)) / 2, 16);
+        oled.print(codeText);
+      }
+      else if (successfullyConnected || currentMode == HF_SCAN)
       {
         char Text[20];
         snprintf(Text, sizeof(Text), "%s", getModeLabel(currentMode));

@@ -28,7 +28,7 @@
 #include "GyverOLED.h"
 
 #define APP_NAME "eHack Portable"
-#define APP_VERSION "v1.4.0"
+#define APP_VERSION "v1.5.0"
 
 #define DISABLE_DEVICE_PIN 22
 #define DISABLE_DEVICE_DELAY 180000 // ms
@@ -262,12 +262,17 @@ uint8_t recievedDataLen = 0;
 uint8_t batteryVoltagePacket[32];
 
 // ================== Serial ===========================/
+#define SERIAL_COMMAND_PREVIEW_MS 5000
 
 bool manualReplay = false;
 unsigned long manualCode = 0;
 unsigned int manualProtocol = 1;
 unsigned int manualBitLength = 24;
 unsigned int manualDelay = 350;
+
+bool serialCommandPreview = false;
+uint32_t serialCommandPreviewTimer = 0;
+uint32_t serialCommandPreviewCode = 0;
 
 /*=================== EEPROM ==========================*/
 #define MAX_EEPROM_VALUES 512
@@ -1028,9 +1033,13 @@ void handleSerialCommand()
         manualDelay = (unsigned int)dly;
 
       manualReplay = true;
+      serialCommandPreview = true;
+      serialCommandPreviewTimer = millis();
+      serialCommandPreviewCode = manualCode;
 
       currentMode = HF_REPLAY;
       initialized = false;
+      resetDisplayPowerSave();
 
       Serial.printf("Manual HF_REPLAY: code=%lu proto=%u bits=%u delay=%u\n",
                     manualCode, manualProtocol, manualBitLength, manualDelay);
