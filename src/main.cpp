@@ -263,6 +263,7 @@ void loop1()
           }
 
           receivedCode = mySwitch.getReceivedValue();
+          rxIndicatorTimer = millis();
 
           mySwitch.disableReceive();
           mySwitch.enableTransmit(GD0_PIN_CC);
@@ -343,6 +344,7 @@ void loop1()
         attackIsActive = true;
 
         receivedCode = mySwitch.getReceivedValue();
+        rxIndicatorTimer = millis();
       }
 
       if (attackIsActive && millis() - attackTimer >= 1000)
@@ -983,6 +985,7 @@ void loop1()
       }
 
       receivedCode = mySwitch.getReceivedValue();
+      rxIndicatorTimer = millis();
       uint16_t newLength = mySwitch.getReceivedBitlength();
       uint16_t newProtocol = mySwitch.getReceivedProtocol();
       uint16_t newDelay = mySwitch.getReceivedDelay();
@@ -1031,6 +1034,18 @@ void loop1()
 // Loop for communication tasks
 void loop()
 {
+  if (Serial && !serialWasConnected)
+  {
+    delay(800);
+    printSerialInstructions();
+    serialWasConnected = true;
+  }
+  else if (!Serial && serialWasConnected)
+  {
+    serialWasConnected = false;
+    offTimer = millis(); 
+  }
+
   uint32_t onTime = 0;
   uint32_t offTime = 0;
   static bool lastConnected = successfullyConnected;
@@ -1085,7 +1100,7 @@ void loop()
       batteryTimer = millis();
     }
 
-    if (millis() - offTimer > DISABLE_DEVICE_DELAY && currentMode != HF_SCAN && !Serial.available())
+    if (millis() - offTimer > DISABLE_DEVICE_DELAY && currentMode != HF_SCAN && !Serial)
     {
       DBG("Going to sleep...: %d\n", currentMode);
       digitalWrite(DISABLE_DEVICE_PIN, HIGH);
@@ -1362,9 +1377,16 @@ void loop()
           else
           {
             snprintf(CodeText, sizeof(CodeText), "Code: %lu", (unsigned long)receivedCode);
-            oled.setCursorXY(10 + (128 - getTextWidth(CodeText)) / 2, 12);
+            int codeX = 10 + (128 - getTextWidth(CodeText)) / 2;
+            oled.setCursorXY(codeX, 12);
           }
           oled.print(CodeText);
+
+          if (receivedCode != 0 && millis() - rxIndicatorTimer < RX_INDICATOR_DURATION)
+          {
+            int codeX = 10 + (128 - getTextWidth(CodeText)) / 2;
+            oled.circle(codeX - 10, 12 + 3, 2, OLED_FILL);
+          }
 
           char FreqText[20];
           snprintf(FreqText, sizeof(FreqText), "%.2f MHz", radioFrequency);

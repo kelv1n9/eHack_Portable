@@ -28,7 +28,7 @@
 #include "GyverOLED.h"
 
 #define APP_NAME "eHack Portable"
-#define APP_VERSION "v1.5.0"
+#define APP_VERSION "v1.5.1"
 
 #define DISABLE_DEVICE_PIN 22
 #define DISABLE_DEVICE_DELAY 180000 // ms
@@ -161,6 +161,10 @@ uint32_t receivedCode = 0;
 float radioFrequency = raFrequencies[1];
 bool attackIsActive = false;
 
+// RX indicator
+#define RX_INDICATOR_DURATION 300 // ms
+uint32_t rxIndicatorTimer = 0;
+
 /* ================ Barrier =================== */
 #define MAX_DELTA_T_BARRIER 200
 #define AN_MOTORS_PULSE 412
@@ -273,6 +277,8 @@ unsigned int manualDelay = 350;
 bool serialCommandPreview = false;
 uint32_t serialCommandPreviewTimer = 0;
 uint32_t serialCommandPreviewCode = 0;
+
+bool serialWasConnected = false;
 
 /*=================== EEPROM ==========================*/
 #define MAX_EEPROM_VALUES 512
@@ -1000,13 +1006,105 @@ void stopRadioAttack()
 
 /* ============================ SERIAL ================================= */
 
+void printSerialInstructions()
+{
+  Serial.println();
+  Serial.println("======================================");
+  Serial.println("  eHack Portable - Serial Control");
+  Serial.println("======================================");
+  Serial.println();
+  Serial.println("Available Commands:");
+  Serial.println();
+  Serial.println("REPLAY <code> <protocol> [bits] [delay]");
+  Serial.println("  - Replay RF signal");
+  Serial.println("  - Example: REPLAY 123456 1");
+  Serial.println("  - Example: REPLAY 123456 1 24 350");
+  Serial.println();
+  Serial.println("MODE <mode_name>");
+  Serial.println("  - Switch to a specific mode");
+  Serial.println("  - Example: MODE HF_JAMMER");
+  Serial.println("  - Send MODE without arguments to list modes");
+  Serial.println();
+  Serial.println("HELP");
+  Serial.println("  - Show this help message");
+  Serial.println();
+  Serial.println("Parameters:");
+  Serial.println("  <code>     - RF code (decimal)");
+  Serial.println("  <protocol> - Protocol number (1-11)");
+  Serial.println("  [bits]     - Bit length (default: 24)");
+  Serial.println("  [delay]    - Pulse delay in us (default: 350)");
+  Serial.println();
+  Serial.println("Available Modes:");
+  Serial.println("  IDLE                  - Idle state");
+  Serial.println("  HF_SPECTRUM           - HF Spectrum analyzer");
+  Serial.println("  HF_ACTIVITY           - HF Activity monitor");
+  Serial.println("  HF_SCAN               - HF Signal scan");
+  Serial.println("  HF_REPLAY             - HF Signal replay");
+  Serial.println("  HF_JAMMER             - HF Jammer");
+  Serial.println("  HF_TESLA              - Tesla charge port opener");
+  Serial.println("  HF_BARRIER_SCAN       - Barrier scan");
+  Serial.println("  HF_BARRIER_REPLAY     - Barrier replay");
+  Serial.println("  HF_BARRIER_BRUTE_CAME - Barrier brute CAME");
+  Serial.println("  HF_BARRIER_BRUTE_NICE - Barrier brute NICE");
+  Serial.println("  UHF_SPECTRUM          - UHF Spectrum analyzer");
+  Serial.println("  UHF_ALL_JAMMER        - UHF All jammer");
+  Serial.println("  UHF_WIFI_JAMMER       - WiFi jammer");
+  Serial.println("  UHF_BT_JAMMER         - Bluetooth jammer");
+  Serial.println("  UHF_BLE_JAMMER        - BLE jammer");
+  Serial.println("  UHF_USB_JAMMER        - USB jammer");
+  Serial.println("  UHF_VIDEO_JAMMER      - Video jammer");
+  Serial.println("  UHF_RC_JAMMER         - RC jammer");
+  Serial.println("  FM_RADIO              - FM Radio transmitter");
+  Serial.println();
+  Serial.println("======================================");
+  Serial.println();
+}
+
+struct ModeEntry
+{
+  const char *name;
+  Mode mode;
+};
+
+const ModeEntry modeTable[] = {
+    {"IDLE", IDLE},
+    {"HF_SPECTRUM", HF_SPECTRUM},
+    {"HF_ACTIVITY", HF_ACTIVITY},
+    {"HF_SCAN", HF_SCAN},
+    {"HF_REPLAY", HF_REPLAY},
+    {"HF_JAMMER", HF_JAMMER},
+    {"HF_TESLA", HF_TESLA},
+    {"HF_BARRIER_SCAN", HF_BARRIER_SCAN},
+    {"HF_BARRIER_REPLAY", HF_BARRIER_REPLAY},
+    {"HF_BARRIER_BRUTE_CAME", HF_BARRIER_BRUTE_CAME},
+    {"HF_BARRIER_BRUTE_NICE", HF_BARRIER_BRUTE_NICE},
+    {"UHF_SPECTRUM", UHF_SPECTRUM},
+    {"UHF_ALL_JAMMER", UHF_ALL_JAMMER},
+    {"UHF_WIFI_JAMMER", UHF_WIFI_JAMMER},
+    {"UHF_BT_JAMMER", UHF_BT_JAMMER},
+    {"UHF_BLE_JAMMER", UHF_BLE_JAMMER},
+    {"UHF_USB_JAMMER", UHF_USB_JAMMER},
+    {"UHF_VIDEO_JAMMER", UHF_VIDEO_JAMMER},
+    {"UHF_RC_JAMMER", UHF_RC_JAMMER},
+    {"FM_RADIO", FM_RADIO},
+};
+const uint8_t modeTableSize = sizeof(modeTable) / sizeof(modeTable[0]);
+
+bool parseModeByName(const char *name, Mode &outMode)
+{
+  for (uint8_t i = 0; i < modeTableSize; i++)
+  {
+    if (strcasecmp(name, modeTable[i].name) == 0)
+    {
+      outMode = modeTable[i].mode;
+      return true;
+    }
+  }
+  return false;
+}
+
 void handleSerialCommand()
 {
-  // Format: REPLAY code protocol [bits] [delay]
-  // Examples:
-  // REPLAY 123456 1
-  // REPLAY 123456 1 24 350
-
   if (!Serial.available())
     return;
 
@@ -1044,6 +1142,45 @@ void handleSerialCommand()
       Serial.printf("Manual HF_REPLAY: code=%lu proto=%u bits=%u delay=%u\n",
                     manualCode, manualProtocol, manualBitLength, manualDelay);
     }
+  }
+  else if (line.startsWith("MODE"))
+  {
+    char modeName[32] = {0};
+    int parsed = sscanf(line.c_str(), "MODE %31s", modeName);
+    if (parsed == 1)
+    {
+      Mode newMode;
+      if (parseModeByName(modeName, newMode))
+      {
+        currentMode = newMode;
+        initialized = false;
+        initializedIdle = false;
+        manualReplay = true;
+        resetDisplayPowerSave();
+        Serial.printf("Mode changed to: %s\n", modeName);
+      }
+      else
+      {
+        Serial.printf("Unknown mode: %s\n", modeName);
+        Serial.println("Use MODE without arguments to list available modes.");
+      }
+    }
+    else
+    {
+      Serial.println("Available modes:");
+      for (uint8_t i = 0; i < modeTableSize; i++)
+      {
+        Serial.printf("  %s\n", modeTable[i].name);
+      }
+    }
+  }
+  else if (line.equalsIgnoreCase("HELP"))
+  {
+    printSerialInstructions();
+  }
+  else
+  {
+    Serial.printf("Unknown command: %s\n", line.c_str());
   }
 }
 
