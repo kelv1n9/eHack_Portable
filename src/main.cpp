@@ -85,13 +85,7 @@ void loop1()
     {
       if (!initializedIdle)
       {
-        mySwitch.disableReceive();
-        mySwitch.disableTransmit();
-        mySwitch.resetAvailable();
-        detachInterrupt(GD0_PIN_CC);
-        digitalWrite(GD0_PIN_CC, LOW);
-        digitalWrite(FM_ENABLE_PIN, LOW);
-        digitalWrite(FM_RESETPIN, LOW);
+        ResetAll();
         currentLedMode = LED_BLINK_SLOW;
         initialized = false;
         attackIsActive = false;
@@ -264,6 +258,7 @@ void loop1()
 
           receivedCode = mySwitch.getReceivedValue();
           rxIndicatorTimer = millis();
+          requestDisplayWake();
 
           mySwitch.disableReceive();
           mySwitch.enableTransmit(GD0_PIN_CC);
@@ -345,6 +340,7 @@ void loop1()
 
         receivedCode = mySwitch.getReceivedValue();
         rxIndicatorTimer = millis();
+        requestDisplayWake();
       }
 
       if (attackIsActive && millis() - attackTimer >= 1000)
@@ -986,6 +982,7 @@ void loop1()
 
       receivedCode = mySwitch.getReceivedValue();
       rxIndicatorTimer = millis();
+      requestDisplayWake();
       uint16_t newLength = mySwitch.getReceivedBitlength();
       uint16_t newProtocol = mySwitch.getReceivedProtocol();
       uint16_t newDelay = mySwitch.getReceivedDelay();
@@ -1043,7 +1040,7 @@ void loop()
   else if (!Serial && serialWasConnected)
   {
     serialWasConnected = false;
-    offTimer = millis(); 
+    offTimer = millis();
   }
 
   uint32_t onTime = 0;
@@ -1249,6 +1246,12 @@ void loop()
       break;
     }
     }
+  }
+
+  if (displayWakeRequested)
+  {
+    displayWakeRequested = false;
+    resetDisplayPowerSave();
   }
 
   if (millis() - displayTimer >= OLED_UPDATE)

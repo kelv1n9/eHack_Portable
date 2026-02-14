@@ -90,6 +90,7 @@ uint32_t displayTimer;
 uint32_t brightnessTimer;
 uint32_t screenOffTimer;
 bool isScreenOff = false;
+volatile bool displayWakeRequested = false;
 
 #define OLED_UPDATE 100
 #define FONT_W 5
@@ -365,6 +366,18 @@ void clearMemory()
 /*=================== FUNCTIONS ==========================*/
 /*********************** COMMON ***************************/
 
+void ResetAll()
+{
+  mySwitch.disableReceive();
+  mySwitch.disableTransmit();
+  mySwitch.resetAvailable();
+  detachInterrupt(GD0_PIN_CC);
+  digitalWrite(GD0_PIN_CC, LOW);
+  digitalWrite(FM_ENABLE_PIN, LOW);
+  digitalWrite(FM_RESETPIN, LOW);
+  attackIsActive = false;
+}
+
 float readBatteryVoltage()
 {
   uint16_t total = 0;
@@ -393,6 +406,11 @@ void resetDisplayPowerSave()
 {
   resetBrightness();
   resetScreenOff();
+}
+
+void requestDisplayWake()
+{
+  displayWakeRequested = true;
 }
 
 uint8_t voltageToPercent(float voltage)
@@ -1137,7 +1155,7 @@ void handleSerialCommand()
 
       currentMode = HF_REPLAY;
       initialized = false;
-      resetDisplayPowerSave();
+      requestDisplayWake();
 
       Serial.printf("Manual HF_REPLAY: code=%lu proto=%u bits=%u delay=%u\n",
                     manualCode, manualProtocol, manualBitLength, manualDelay);
@@ -1152,11 +1170,12 @@ void handleSerialCommand()
       Mode newMode;
       if (parseModeByName(modeName, newMode))
       {
+        ResetAll();
         currentMode = newMode;
         initialized = false;
         initializedIdle = false;
         manualReplay = true;
-        resetDisplayPowerSave();
+        requestDisplayWake();
         Serial.printf("Mode changed to: %s\n", modeName);
       }
       else
