@@ -1115,7 +1115,8 @@ void loop()
           DBG("Connection established\n");
           checkConnectionTimer = millis();
           successfullyConnected = true;
-          currentMode = IDLE;
+          if (currentMode != HF_SCAN)
+            currentMode = IDLE;
           currentLedMode = LED_BLINK_SLOW;
           batteryTimer = millis() - BATTERY_CHECK_INTERVAL;
         }
