@@ -68,6 +68,7 @@ Mode lastMode = currentMode;
 /* ================== Common ================== */
 bool initialized = false;
 bool initializedIdle = false;
+bool masterInHFScan = false;
 
 enum LedMode
 {

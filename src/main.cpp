@@ -946,8 +946,9 @@ void loop1()
       initialized = true;
     }
 
-    if (successfullyConnected && receivedSignals > 0)
+    if (masterInHFScan && receivedSignals > 0)
     {
+      masterInHFScan = false;
       mySwitch.disableReceive();
       mySwitch.enableTransmit(GD0_PIN_CC);
       pinMode(GD0_PIN_CC, OUTPUT);
@@ -1172,6 +1173,7 @@ void loop()
           }
           DBG("Received packet with mode: %d, length: %d\n", currentMode, recievedDataLen);
           initializedIdle = false;
+          masterInHFScan = (currentMode == HF_SCAN);
 
           switch (currentMode)
           {
