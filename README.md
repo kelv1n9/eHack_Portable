@@ -6,6 +6,7 @@
 This is the repository for the **eHack Portable Module**, a wireless companion designed to extend the capabilities of the main [eHack Project](https://github.com/kelv1n9/eHack).
 
 This module acts as a remote-controlled agent, receiving commands from the main eHack device to perform a wide range of radio frequency tasks. Its portable, battery-powered design makes it perfect for flexible and discreet security research operations.
+
 ---
 
 ## ✨ Key Features
