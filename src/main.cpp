@@ -946,7 +946,7 @@ void loop1()
       initialized = true;
     }
 
-    if (masterInHFScan && receivedSignals > 0)
+    if (successfullyConnected && masterInHFScan && receivedSignals > 0)
     {
       masterInHFScan = false;
       mySwitch.disableReceive();
@@ -1150,6 +1150,7 @@ void loop()
       {
         DBG("Slave: Connection LOST (Master timeout)!\n");
         successfullyConnected = false;
+        masterInHFScan = false;
         offTimer = millis();
         return;
       }
